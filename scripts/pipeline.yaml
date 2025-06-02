@@ -1,0 +1,141 @@
+optimizer_model: gpt-4o
+datasets:
+  input:
+    type: file
+    path: data/unified_dataset.json
+    source: local
+default_model: gpt-4o-mini
+operations:
+  - type: filter
+    name: filter_fqa_info
+    prompt: >-
+      {{input.content}}
+
+      Determine if the above thread contains information that can be used to
+      formulate an FAQ. Follow these steps:
+
+
+      1. **Identify the Question**: 
+         - Look for a clear question that can be answered without requiring intervention from a support agent. 
+         - **Acceptable examples**:
+           - "How do I reset my password?"
+           - "What are the steps to delete my account?"
+         - **Unacceptable examples**:
+           - "Can you delete my account for me?" (requires support intervention)
+
+      2. **Assess the Answer**: 
+         - Check if the corresponding answer provides self-service information that directly addresses the identified question. 
+         - **Acceptable examples**:
+           - "To reset your password, go to the settings page, click on 'Change Password', and follow the prompts."
+           - "To delete your account, navigate to the account settings and select 'Delete Account'."
+         - **Unacceptable examples**:
+           - "The support agent will delete your account." (requires support intervention)
+           - "You need to contact customer support for assistance."
+
+      3. **Return Value**: 
+         - Return `true` if the post contains a clear question and a self-service answer. 
+         - Return `false` if it requires support intervention or lacks a self-service answer.
+
+      **Output format**: 
+
+      - Return a boolean value: `true` or `false`.
+
+
+      **Example outputs**:
+
+      - If the post contains a question and answer: `true`
+
+      - If the post requires support intervention: `false`
+
+
+      **Additional Context**: 
+
+      The goal is to filter for FAQs. If a clear FAQ can be formulated from the
+      information in the thread, it should be retained; otherwise, it should be
+      discarded.
+    output:
+      schema:
+        has_faq_info: boolean
+    condition: >
+      Use the LLM to determine if the post is a technical question. Return true
+      if it is, false otherwise.
+  - type: map
+    name: extract_faq_pair
+    prompt: >-
+      {{ input.content }}
+
+
+      Given the thread above, perform the following steps to extract
+      the main technical question and corresponding answer for FAQ purposes:
+
+
+      1. **Identify the Main Technical Question**: 
+         - Look for a clear, self-serviceable technical question that can be answered without requiring intervention from a support agent. 
+         - **Acceptable Examples**:
+           - "How do I reset my password?"
+           - "What are the steps to delete my account?"
+         - **Unacceptable Examples**:
+           - "Can you delete my account for me?" (requires support intervention)
+         - If a question is ambiguous or unclear, classify it as unacceptable.
+
+      2. **Extract the Corresponding Answer**: 
+         - Provide a direct answer that addresses the identified question. 
+         - If the answer involves multiple steps, clearly outline those steps in a numbered format.
+         - **Acceptable Example**: "To reset your password, go to the settings page, click on 'Change Password', and follow the prompts."
+         - **Unacceptable Example**: "The support agent will delete your account."
+
+      3. **Remove Non-Essential Elements**: 
+         - Eliminate any dialogue or conversational context that does not contribute to understanding the question and answer. Focus solely on the question and answer.
+
+      4. **Format the Output**: 
+         - Remove any HTML formatting and convert the question and answer into Markdown format. 
+         - **Output Format Example**:
+           - **Question**: `How do I reset my password?`
+           - **Answer**: `To reset your password, go to the settings page, click on 'Change Password', and follow the prompts.`
+
+      5. **Extract Relevant Documentation Links**: 
+         - If any links or references in the post provide additional context or documentation, include them in the output. List multiple links as a comma-separated list.
+
+      6. **Ensure Contextual Clarity**: 
+         - Ensure the extracted question and answer provide enough context for a reader to understand the issue and resolution without needing further information. If the question-answer pair lacks sufficient detail, do not extract it.
+
+      **Output Requirements**:
+
+      - Provide the results in the following format:
+        - **Question**: [Extracted question]
+        - **Answer**: [Extracted answer]
+        - **References**: [List of relevant links, if any, separated by commas]
+
+      **Additional Context**:
+
+      The task is to extract and formulate FAQ pairs from support tickets in the
+      forum post threads. These FAQ pairs should be generic enough to be used
+      for model fine-tuning in a QA task. Ensure that the question-answer pairs
+      are comprehensive and reflect the underlying technical queries raised in
+      the posts. 
+
+
+      **Feedback Reflection**:
+
+      In this example, ensure that the question is formulated clearly, utilizing
+      all relevant information from the post thread. The answer should be
+      generic enough to address the technical query without including
+      unnecessary details like IDs or specific code snippets.
+    output:
+      schema:
+        question: string
+        answer: string
+        references: list[string]
+    model: gpt-4o
+pipeline:
+  steps:
+    - name: data_processing
+      input: input
+      operations:
+        - filter_fqa_info
+        - extract_faq_pair
+  output:
+    type: file
+    path: data/pipelines/outputs/pipeline.json
+    intermediate_dir: data/pipelines/intermediates
+system_prompt: {}
