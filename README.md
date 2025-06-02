@@ -1,6 +1,6 @@
 # DocsBot
 
-**An documentation chat agent built for the CoreWeave hackathon, 2025**
+**A documentation chat agent built for the CoreWeave hackathon, 2025**
 
 DocsBot is an AI-powered documentation assistant that provides context-aware answers across multiple documentation sources including Weights & Biases (wandb), Weave, and CoreWeave. Built with openai-agents-sdk and chromadb, it delivers responses from the documentation sources with proper citations.
 
